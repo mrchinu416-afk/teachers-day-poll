@@ -216,7 +216,10 @@ function setupCategoryPicker(catId) {
   const el = document.getElementById('picker-' + catId);
   createPicker(el, {
     placeholder: 'Search a teacher…',
-    excludeNames: () => [voterName],
+    excludeNames: () => [
+      voterName,
+      ...Object.entries(picks).filter(([k, v]) => k !== catId && v).map(([, v]) => v)
+    ],
     onSelect: (name) => {
       picks[catId] = name;
       selectedChip(el, name, () => {
@@ -329,6 +332,7 @@ const server = http.createServer((req, res) => {
         if (data.voted[normalize(voter)]) {
           return sendJSON(res, 400, { ok: false, error: "You've already voted." });
         }
+        const seen = new Set();
         for (const c of CATEGORIES) {
           const teacher = picks[c.id];
           if (!teacher || !TEACHERS.includes(teacher)) {
@@ -337,6 +341,10 @@ const server = http.createServer((req, res) => {
           if (normalize(teacher) === normalize(voter)) {
             return sendJSON(res, 400, { ok: false, error: "You can't vote for yourself." });
           }
+          if (seen.has(normalize(teacher))) {
+            return sendJSON(res, 400, { ok: false, error: "You picked " + teacher + " in more than one category. Choose a different teacher for each." });
+          }
+          seen.add(normalize(teacher));
         }
         CATEGORIES.forEach((c) => {
           data.votes.push({ voter, category: c.id, teacher: picks[c.id] });
