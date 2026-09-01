@@ -53,6 +53,17 @@ const CATEGORIES = [
 const PORT = process.env.PORT || 3000;
 // =======================================================
 
+// A different random order each time the page loads, so no name gets an
+// unfair edge just from sitting near the top of a fixed list.
+function shuffledTeachers() {
+  const arr = TEACHERS.slice();
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 const DATA_FILE = path.join(__dirname, "votes.json");
 
 const crypto = require("crypto");
@@ -202,7 +213,7 @@ function votePageHTML() {
 </div>
 
 <script>
-const ALL_TEACHERS = ${JSON.stringify(TEACHERS)};
+const ALL_TEACHERS = ${JSON.stringify(shuffledTeachers())};
 const CATEGORIES = ${JSON.stringify(CATEGORIES)};
 const picks = {};
 let step = 0; // 0..CATEGORIES.length-1 are category pages, CATEGORIES.length is the review page
@@ -246,7 +257,7 @@ function createPicker(container, { placeholder, excludeNames, onSelect }) {
     const excluded = new Set((excludeNames() || []).map(n => n.toLowerCase().trim()));
     const matches = ALL_TEACHERS.filter(t =>
       !excluded.has(t.toLowerCase().trim()) && (q === '' || t.toLowerCase().includes(q))
-    ).slice(0, 30);
+    );
     if (matches.length === 0) {
       results.innerHTML = '<div class="picker-empty">No matching names.</div>';
       return;
