@@ -82,10 +82,10 @@ function saveData() {
 // airtight against a determined repeat-voter.
 function getSessionId(req, res) {
   const cookies = parseCookies(req.headers.cookie || "");
-  if (cookies.sid) return cookies.sid;
+  if (cookies.sid) return { sid: cookies.sid, isNew: false };
   const sid = crypto.randomUUID();
   res.setHeader("Set-Cookie", `sid=${sid}; Path=/; Max-Age=31536000; SameSite=Lax`);
-  return sid;
+  return { sid, isNew: true };
 }
 
 function parseCookies(header) {
@@ -151,58 +151,85 @@ function votePageHTML() {
   body { margin:0; background:var(--bg); color:var(--ink); font-family: 'Segoe UI', sans-serif; display:flex; justify-content:center; padding:24px 16px; }
   .wrap { width:100%; max-width:480px; }
   h1 { font-family: Georgia, serif; font-size:24px; margin:0 0 4px; }
+  h1.welcome { font-size:30px; }
   .eyebrow { color:var(--gold); font-size:14px; font-family: Georgia, serif; }
   .card { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:22px; margin-top:20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
   button { width:100%; padding:12px; font-size:15px; border-radius:6px; border:1px solid var(--border); margin-top:8px; }
   button.primary { background:var(--gold); color:#FFFFFF; font-weight:700; border:none; cursor:pointer; }
   button.primary:disabled { background:#C9C2AC; }
-  .cat-label { font-size:13px; color:var(--muted); margin-bottom:6px; }
-  .cat-block { margin-bottom:18px; }
+  button.ghost { background:none; color:var(--muted); }
+  .nav-row { display:flex; gap:10px; }
+  .nav-row button { margin-top:0; }
+  .progress-text { font-size:13px; color:var(--muted); margin-bottom:4px; }
+  .progress-bar { height:4px; background:var(--border); border-radius:2px; margin-bottom:18px; overflow:hidden; }
+  .progress-fill { height:100%; background:var(--gold); border-radius:2px; transition:width .2s ease; }
+  .cat-title { font-family: Georgia, serif; font-size:21px; margin:0 0 14px; }
   .msg { color:#B4453D; font-size:13px; }
   .ok { color:#4F8F5B; font-size:14px; }
   .picker-input { width:100%; padding:12px; font-size:15px; border-radius:6px; border:1px solid var(--border); background:var(--field); color:var(--ink); }
   .picker-input:disabled { opacity:0.5; }
-  .picker-results { max-height:220px; overflow-y:auto; border:1px solid var(--border); border-top:none; border-radius:0 0 6px 6px; background:var(--field); }
+  .picker-results { max-height:260px; overflow-y:auto; border:1px solid var(--border); border-top:none; border-radius:0 0 6px 6px; background:var(--field); }
   .picker-result { display:block; width:100%; text-align:left; padding:10px 12px; background:none; border:none; border-top:1px solid var(--border); color:var(--ink); font-size:14px; margin:0; border-radius:0; cursor:pointer; }
   .picker-result:hover, .picker-result:active { background:#F0EBDA; }
   .picker-empty { padding:10px 12px; color:var(--muted); font-size:13px; }
   .chip { display:flex; align-items:center; justify-content:space-between; background:var(--field); border:1px solid var(--gold); border-radius:6px; padding:10px 12px; font-size:15px; }
   .chip button { width:auto; margin:0; padding:4px 10px; font-size:12px; background:none; border:1px solid var(--border); color:var(--muted); }
+  .review-row { display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--border); font-size:14px; gap:10px; }
+  .review-row:last-child { border-bottom:none; }
+  .review-cat { color:var(--muted); flex:1; }
+  .review-name { font-weight:600; text-align:right; }
+  .review-edit { width:auto; margin:0; padding:4px 10px; font-size:12px; background:none; border:1px solid var(--border); color:var(--muted); flex-shrink:0; }
 </style></head>
 <body><div class="wrap">
 <div class="eyebrow">Teacher's Day</div>
-<h1>Staff Recognition Poll</h1>
 
-<div class="card" id="voteCard" style="display:none;">
-  <div id="voteForm"></div>
-  <button class="primary" id="submitBtn" disabled>Submit ballot</button>
-  <div id="msg"></div>
+<div class="card" id="welcomeCard" style="display:none;">
+  <h1 class="welcome">Welcome, Students!</h1>
+  <p style="color:var(--muted);">Cast your vote for your teachers, one fun award at a time. It only takes a minute.</p>
+  <button class="primary" id="startBtn">Start Voting</button>
 </div>
+
+<div class="card" id="stepCard" style="display:none;"></div>
 
 <div class="card" id="doneCard" style="display:none;">
   <h2 id="doneHeading">Ballot submitted</h2>
   <p style="color:var(--muted);" id="doneText">Thanks. Your votes are recorded.</p>
 </div>
 
+<div class="card" id="blockedCard" style="display:none;">
+  <h2>Cookies are blocked</h2>
+  <p style="color:var(--muted);">This poll needs cookies enabled to make sure each device votes once. Enable cookies (or exit private/incognito mode), then reload this page.</p>
+</div>
+
 <script>
 const ALL_TEACHERS = ${JSON.stringify(TEACHERS)};
 const CATEGORIES = ${JSON.stringify(CATEGORIES)};
 const picks = {};
+let step = 0; // 0..CATEGORIES.length-1 are category pages, CATEGORIES.length is the review page
 
 // One vote per device, tracked by a cookie the server sets automatically.
 // This is checked on every page load, so refreshing does not reset it.
 (async function init() {
   const res = await fetch('/api/status');
   const status = await res.json();
+  if (status.cookiesBlocked) {
+    document.getElementById('blockedCard').style.display = 'block';
+    return;
+  }
   if (status.alreadyVoted) {
     document.getElementById('doneHeading').textContent = 'Already voted';
     document.getElementById('doneText').textContent = 'This device has already submitted a ballot. One vote per device.';
     document.getElementById('doneCard').style.display = 'block';
     return;
   }
-  document.getElementById('voteCard').style.display = 'block';
-  buildCategoryPickers();
+  document.getElementById('welcomeCard').style.display = 'block';
 })();
+
+document.getElementById('startBtn').addEventListener('click', () => {
+  document.getElementById('welcomeCard').style.display = 'none';
+  document.getElementById('stepCard').style.display = 'block';
+  renderStep(0);
+});
 
 // Reusable type-to-search picker. Replaces a native <select>, since a
 // scrolling dropdown of 116+ names is unusable on a phone.
@@ -219,7 +246,7 @@ function createPicker(container, { placeholder, excludeNames, onSelect }) {
     const excluded = new Set((excludeNames() || []).map(n => n.toLowerCase().trim()));
     const matches = ALL_TEACHERS.filter(t =>
       !excluded.has(t.toLowerCase().trim()) && (q === '' || t.toLowerCase().includes(q))
-    );
+    ).slice(0, 30);
     if (matches.length === 0) {
       results.innerHTML = '<div class="picker-empty">No matching names.</div>';
       return;
@@ -235,10 +262,6 @@ function createPicker(container, { placeholder, excludeNames, onSelect }) {
   container.addEventListener('click', (e) => {
     const btn = e.target.closest('.picker-result');
     if (!btn) return;
-    // Defense in depth: re-check against current exclusions even if this
-    // button came from a list that was rendered before another category
-    // took this name. A stale click gets ignored and the list refreshed,
-    // instead of letting the same teacher through twice.
     const excluded = new Set((excludeNames() || []).map(n => n.toLowerCase().trim()));
     if (excluded.has(btn.dataset.name.toLowerCase().trim())) {
       render();
@@ -247,8 +270,7 @@ function createPicker(container, { placeholder, excludeNames, onSelect }) {
     onSelect(btn.dataset.name);
   });
   render('');
-
-  return render; // exposed so other pickers can be told to refresh
+  return render;
 }
 
 function selectedChip(container, name, onChange) {
@@ -257,63 +279,105 @@ function selectedChip(container, name, onChange) {
   container.querySelector('.chip button').addEventListener('click', onChange);
 }
 
-function buildCategoryPickers() {
-  const form = document.getElementById('voteForm');
-  form.innerHTML = CATEGORIES.map(c =>
-    '<div class="cat-block"><div class="cat-label">' + c.label + '</div><div id="picker-' + c.id + '"></div></div>'
-  ).join('');
-  CATEGORIES.forEach(c => setupCategoryPicker(c.id));
+function progressHTML(idx) {
+  const total = CATEGORIES.length;
+  const pct = Math.round((idx / total) * 100);
+  return '<div class="progress-text">Category ' + (idx + 1) + ' of ' + total + '</div>' +
+    '<div class="progress-bar"><div class="progress-fill" style="width:' + pct + '%"></div></div>';
 }
 
-const categoryRefreshers = {};
+function renderStep(idx) {
+  step = idx;
+  const card = document.getElementById('stepCard');
 
-function refreshAllCategoryPickers() {
-  Object.values(categoryRefreshers).forEach(fn => fn && fn());
+  if (idx >= CATEGORIES.length) {
+    renderReview(card);
+    return;
+  }
+
+  const c = CATEGORIES[idx];
+  card.innerHTML = progressHTML(idx) +
+    '<div class="cat-title">' + c.label + '</div>' +
+    '<div id="stepPicker"></div>' +
+    '<div class="nav-row" style="margin-top:14px;">' +
+      (idx > 0 ? '<button class="ghost" id="backBtn">Back</button>' : '') +
+      '<button class="primary" id="nextBtn" disabled>' + (idx === CATEGORIES.length - 1 ? 'Review' : 'Next') + '</button>' +
+    '</div>';
+
+  const pickerEl = document.getElementById('stepPicker');
+  const nextBtn = document.getElementById('nextBtn');
+
+  function showAsSelected(name) {
+    selectedChip(pickerEl, name, () => {
+      delete picks[c.id];
+      nextBtn.disabled = true;
+      buildPicker();
+    });
+    nextBtn.disabled = false;
+  }
+
+  function buildPicker() {
+    createPicker(pickerEl, {
+      placeholder: 'Search a teacher…',
+      excludeNames: () => Object.entries(picks).filter(([k, v]) => k !== c.id && v).map(([, v]) => v),
+      onSelect: (name) => {
+        picks[c.id] = name;
+        showAsSelected(name);
+      }
+    });
+  }
+
+  if (picks[c.id]) {
+    showAsSelected(picks[c.id]);
+  } else {
+    buildPicker();
+  }
+
+  nextBtn.addEventListener('click', () => renderStep(idx + 1));
+  const backBtn = document.getElementById('backBtn');
+  if (backBtn) backBtn.addEventListener('click', () => renderStep(idx - 1));
 }
 
-function setupCategoryPicker(catId) {
-  const el = document.getElementById('picker-' + catId);
-  const refresh = createPicker(el, {
-    placeholder: 'Search a teacher…',
-    excludeNames: () => Object.entries(picks).filter(([k, v]) => k !== catId && v).map(([, v]) => v),
-    onSelect: (name) => {
-      picks[catId] = name;
-      selectedChip(el, name, () => {
-        delete picks[catId];
-        checkReady();
-        setupCategoryPicker(catId);
-        refreshAllCategoryPickers();
-      });
-      checkReady();
-      refreshAllCategoryPickers();
-    }
+function renderReview(card) {
+  card.innerHTML =
+    '<div class="cat-title">Review your ballot</div>' +
+    CATEGORIES.map((c, i) =>
+      '<div class="review-row"><span class="review-cat">' + c.label + '</span>' +
+      '<span class="review-name">' + (picks[c.id] || '\u2014') + '</span>' +
+      '<button type="button" class="review-edit" data-idx="' + i + '">Edit</button></div>'
+    ).join('') +
+    '<div class="nav-row" style="margin-top:16px;">' +
+      '<button class="ghost" id="backBtn">Back</button>' +
+      '<button class="primary" id="submitBtn">Submit ballot</button>' +
+    '</div>' +
+    '<div id="msg"></div>';
+
+  card.querySelectorAll('.review-edit').forEach(btn => {
+    btn.addEventListener('click', () => renderStep(parseInt(btn.dataset.idx, 10)));
   });
-  categoryRefreshers[catId] = refresh;
+  document.getElementById('backBtn').addEventListener('click', () => renderStep(CATEGORIES.length - 1));
+  document.getElementById('submitBtn').addEventListener('click', submitBallot);
 }
 
-function checkReady() {
-  const done = CATEGORIES.every(c => picks[c.id]);
-  document.getElementById('submitBtn').disabled = !done;
-}
-
-document.getElementById('submitBtn').addEventListener('click', async () => {
+async function submitBallot() {
   const msg = document.getElementById('msg');
-  document.getElementById('submitBtn').disabled = true;
+  const submitBtn = document.getElementById('submitBtn');
+  submitBtn.disabled = true;
   const res = await fetch('/api/vote', {
     method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify({ picks })
   });
   const out = await res.json();
   if (out.ok) {
-    document.getElementById('voteCard').style.display = 'none';
+    document.getElementById('stepCard').style.display = 'none';
     document.getElementById('doneHeading').textContent = 'Ballot submitted';
     document.getElementById('doneText').textContent = 'Thanks. Your votes are recorded.';
     document.getElementById('doneCard').style.display = 'block';
   } else {
-    msg.className = 'msg'; msg.textContent = out.error || 'Submission failed.';
-    document.getElementById('submitBtn').disabled = false;
+    if (msg) { msg.className = 'msg'; msg.textContent = out.error || 'Submission failed.'; }
+    submitBtn.disabled = false;
   }
-});
+}
 </script>
 </div></body></html>`;
 }
@@ -367,7 +431,7 @@ setInterval(refresh, 4000);
 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, "http://localhost");
-  const sid = getSessionId(req, res); // ensures every response carries a device cookie
+  const { sid, isNew } = getSessionId(req, res); // ensures every response carries a device cookie
 
   if (req.method === "GET" && url.pathname === "/") {
     return send(res, 200, "text/html", votePageHTML());
@@ -378,7 +442,10 @@ const server = http.createServer((req, res) => {
   }
 
   if (req.method === "GET" && url.pathname === "/api/status") {
-    return sendJSON(res, 200, { alreadyVoted: !!data.voted[sid] });
+    // If /api/status finds no cookie, the browser didn't keep the one the
+    // page's own GET / response just tried to set moments earlier — that's
+    // a cookie-blocking browser, not a genuine first visit.
+    return sendJSON(res, 200, { alreadyVoted: !!data.voted[sid], cookiesBlocked: isNew });
   }
 
   if (req.method === "GET" && url.pathname === "/api/results") {
@@ -386,6 +453,12 @@ const server = http.createServer((req, res) => {
   }
 
   if (req.method === "POST" && url.pathname === "/api/vote") {
+    if (isNew) {
+      return sendJSON(res, 400, {
+        ok: false,
+        error: "Your browser is blocking cookies, so one-vote-per-device can't be confirmed. Enable cookies (or leave private/incognito mode), reload the page, and try again."
+      });
+    }
     let body = "";
     req.on("data", (chunk) => (body += chunk));
     req.on("end", () => {
