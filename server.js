@@ -5,8 +5,12 @@ const os = require("os");
 
 // ============ EDIT THESE BEFORE THE EVENT ============
 const TEACHERS = [
-  "Teacher A", "Teacher B", "Teacher C", "Teacher D", "Teacher E",
-  "Teacher F", "Teacher G", "Teacher H", "Teacher I", "Teacher J",
+  "ABHIJEET SINGH CHUNDAWAT", "AJIT SINGH", "ALKESH CHOUHAN", "ANITA CHITTORA",
+  "ANITA KASOTIYA", "ANITA SHARMA", "ANJANA SINGH", "ANKITA S.", "AREEBA AHMAD",
+  "ARPITA CHHABRA", "ARIFA SAIF", "ARZOO SAWLANI", "ASHA DAK", "ASHIYA BANU",
+  "BASANTA PALIWAL", "CHETNA ARYA", "DEEPANSHI DHAKAR", "CHANDRA JYOTSNA GOSWAMI",
+  "DEEPA KOTHARI", "DEEPIKA DHAYBHAI",
+  // remaining 96 names still to be added
 ];
 
 // Order matters: earlier categories get first claim on a teacher's name
@@ -88,27 +92,27 @@ function votePageHTML() {
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Teacher's Day Poll</title>
 <style>
-  :root { --bg:#16281F; --panel:#1F3A2E; --border:#2C4436; --cream:#F3EFE4; --gold:#C9A24B; --muted:#CFC9B8; }
+  :root { --bg:#F5F1E6; --panel:#FFFFFF; --border:#DDD5BE; --field:#FAF8F1; --ink:#2A3B2F; --gold:#B8863A; --muted:#6E7A6A; }
   * { box-sizing: border-box; }
-  body { margin:0; background:var(--bg); color:var(--cream); font-family: 'Segoe UI', sans-serif; display:flex; justify-content:center; padding:24px 16px; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family: 'Segoe UI', sans-serif; display:flex; justify-content:center; padding:24px 16px; }
   .wrap { width:100%; max-width:480px; }
   h1 { font-family: Georgia, serif; font-size:24px; margin:0 0 4px; }
   .eyebrow { color:var(--gold); font-size:14px; font-family: Georgia, serif; }
-  .card { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:22px; margin-top:20px; }
+  .card { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:22px; margin-top:20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
   button { width:100%; padding:12px; font-size:15px; border-radius:6px; border:1px solid var(--border); margin-top:8px; }
-  button.primary { background:var(--gold); color:var(--bg); font-weight:700; border:none; cursor:pointer; }
-  button.primary:disabled { background:#5C5643; }
-  .cat-label { font-size:13px; color:#A8B0A5; margin-bottom:6px; }
+  button.primary { background:var(--gold); color:#FFFFFF; font-weight:700; border:none; cursor:pointer; }
+  button.primary:disabled { background:#C9C2AC; }
+  .cat-label { font-size:13px; color:var(--muted); margin-bottom:6px; }
   .cat-block { margin-bottom:18px; }
-  .msg { color:#E08585; font-size:13px; }
-  .ok { color:#8FCB9B; font-size:14px; }
-  .picker-input { width:100%; padding:12px; font-size:15px; border-radius:6px; border:1px solid var(--border); background:#0F1F17; color:var(--cream); }
+  .msg { color:#B4453D; font-size:13px; }
+  .ok { color:#4F8F5B; font-size:14px; }
+  .picker-input { width:100%; padding:12px; font-size:15px; border-radius:6px; border:1px solid var(--border); background:var(--field); color:var(--ink); }
   .picker-input:disabled { opacity:0.5; }
-  .picker-results { max-height:220px; overflow-y:auto; border:1px solid var(--border); border-top:none; border-radius:0 0 6px 6px; background:#0F1F17; }
-  .picker-result { display:block; width:100%; text-align:left; padding:10px 12px; background:none; border:none; border-top:1px solid var(--border); color:var(--cream); font-size:14px; margin:0; border-radius:0; cursor:pointer; }
-  .picker-result:hover, .picker-result:active { background:#182E22; }
-  .picker-empty { padding:10px 12px; color:#8B9188; font-size:13px; }
-  .chip { display:flex; align-items:center; justify-content:space-between; background:#0F1F17; border:1px solid var(--gold); border-radius:6px; padding:10px 12px; font-size:15px; }
+  .picker-results { max-height:220px; overflow-y:auto; border:1px solid var(--border); border-top:none; border-radius:0 0 6px 6px; background:var(--field); }
+  .picker-result { display:block; width:100%; text-align:left; padding:10px 12px; background:none; border:none; border-top:1px solid var(--border); color:var(--ink); font-size:14px; margin:0; border-radius:0; cursor:pointer; }
+  .picker-result:hover, .picker-result:active { background:#F0EBDA; }
+  .picker-empty { padding:10px 12px; color:var(--muted); font-size:13px; }
+  .chip { display:flex; align-items:center; justify-content:space-between; background:var(--field); border:1px solid var(--gold); border-radius:6px; padding:10px 12px; font-size:15px; }
   .chip button { width:auto; margin:0; padding:4px 10px; font-size:12px; background:none; border:1px solid var(--border); color:var(--muted); }
 </style></head>
 <body><div class="wrap">
@@ -262,17 +266,17 @@ function resultsPageHTML() {
 <html><head><meta charset="utf-8">
 <title>Live Results</title>
 <style>
-  body { margin:0; background:#16281F; color:#F3EFE4; font-family: 'Segoe UI', sans-serif; padding:32px; }
+  body { margin:0; background:#F5F1E6; color:#2A3B2F; font-family: 'Segoe UI', sans-serif; padding:32px; }
   h1 { font-family: Georgia, serif; }
-  .sub { color:#A8B0A5; margin-top:-8px; }
+  .sub { color:#6E7A6A; margin-top:-8px; }
   .cat { margin-top:28px; }
   .cat h2 { font-family: Georgia, serif; font-size:20px; margin-bottom:10px; }
   .row { display:flex; align-items:center; gap:12px; margin-bottom:6px; }
   .name { width:180px; font-size:15px; }
-  .bar-bg { flex:1; background:#2C4436; border-radius:4px; overflow:hidden; height:26px; }
+  .bar-bg { flex:1; background:#E4DDC8; border-radius:4px; overflow:hidden; height:26px; }
   .bar { height:100%; border-radius:4px; }
-  .count { width:30px; text-align:right; font-size:14px; color:#CFC9B8; }
-  .gold { background:#C9A24B; } .silver { background:#9AA5A0; } .bronze { background:#8C6A4A; }
+  .count { width:30px; text-align:right; font-size:14px; color:#6E7A6A; }
+  .gold { background:#C9A24B; } .silver { background:#A9B0A4; } .bronze { background:#A9825C; }
 </style></head>
 <body>
 <h1>Staff Recognition Poll — Live Results</h1>
