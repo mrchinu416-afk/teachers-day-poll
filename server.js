@@ -189,14 +189,24 @@ function votePageHTML() {
   .review-row:last-child { border-bottom:none; }
   .review-cat { color:var(--muted); flex:1; }
   .review-name { font-weight:600; text-align:right; }
-  .review-edit { width:auto; margin:0; padding:4px 10px; font-size:12px; background:none; border:1px solid var(--border); color:var(--muted); flex-shrink:0; }
+  .review-edit { width:auto; margin:0; padding:4px 10px; font-size:12px; background:none; border:1px solid var(--border); color:var(--muted); flex-shrink:0; }  .instructions { margin:16px 0; padding:0; list-style:none; }
+  .instructions li { display:flex; gap:10px; padding:8px 0; font-size:14px; color:var(--ink); border-bottom:1px solid var(--border); }
+  .instructions li:last-child { border-bottom:none; }
+  .instructions .num { flex-shrink:0; width:22px; height:22px; border-radius:50%; background:var(--gold); color:#fff; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; }
 </style></head>
 <body><div class="wrap">
 <div class="eyebrow">Teacher's Day</div>
 
 <div class="card" id="welcomeCard" style="display:none;">
   <h1 class="welcome">Welcome, Students!</h1>
-  <p style="color:var(--muted);">Cast your vote for your teachers, one fun award at a time. It only takes a minute.</p>
+  <p style="color:var(--muted);">Cast your vote for your teachers, one fun award at a time.</p>
+  <ol class="instructions">
+    <li><span class="num">1</span><span>You'll go through 13 fun award categories, one at a time. Pick a teacher for each.</span></li>
+    <li><span class="num">2</span><span>Type to search a teacher's name &mdash; there are 116 to choose from.</span></li>
+    <li><span class="num">3</span><span>A teacher can only be picked once in your ballot &mdash; spread your votes around.</span></li>
+    <li><span class="num">4</span><span>You'll see a review screen before final submit, where you can still edit any answer.</span></li>
+    <li><span class="num">5</span><span>Once submitted, that's final &mdash; only one vote per device.</span></li>
+  </ol>
   <button class="primary" id="startBtn">Start Voting</button>
 </div>
 
