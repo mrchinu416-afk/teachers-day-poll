@@ -219,7 +219,7 @@ function createPicker(container, { placeholder, excludeNames, onSelect }) {
     const excluded = new Set((excludeNames() || []).map(n => n.toLowerCase().trim()));
     const matches = ALL_TEACHERS.filter(t =>
       !excluded.has(t.toLowerCase().trim()) && (q === '' || t.toLowerCase().includes(q))
-    ).slice(0, 30);
+    );
     if (matches.length === 0) {
       results.innerHTML = '<div class="picker-empty">No matching names.</div>';
       return;
