@@ -126,7 +126,14 @@ function computeResults() {
 }
 
 function send(res, status, contentType, body) {
-  res.writeHead(status, { "Content-Type": contentType });
+  res.writeHead(status, {
+    "Content-Type": contentType,
+    // Prevent browsers, mobile-carrier proxies, and any CDN in between from
+    // caching stale HTML/JS (e.g. an old teacher list) after a redeploy.
+    "Cache-Control": "no-store, no-cache, must-revalidate, private",
+    "Pragma": "no-cache",
+    "Expires": "0",
+  });
   res.end(body);
 }
 
