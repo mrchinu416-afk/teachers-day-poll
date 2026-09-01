@@ -16,17 +16,27 @@ const TEACHERS = [
 // Order matters: earlier categories get first claim on a teacher's name
 // if that teacher tops the vote count in more than one category.
 const CATEGORIES = [
-  { id: "punctuality", label: "Punctuality" },
-  { id: "approachable", label: "Most Approachable" },
-  { id: "teaching", label: "Best Teaching Quality" },
-  { id: "discipline", label: "Discipline" },
-  { id: "mentor", label: "Best Mentor" },
+  { id: "calm_in_chaos", label: "Calm in Chaos" },
+  { id: "walking_encyclopedia", label: "Walking Encyclopedia" },
+  { id: "one_more_question", label: "Master of \u2018One More Question\u2019" },
+  { id: "deadline_detective", label: "Deadline Detective" },
+  { id: "silent_classroom_control", label: "The Silent Classroom Control" },
+  { id: "walking_attendance_register", label: "Walking Attendance Register" },
+  { id: "crisis_manager", label: "The Crisis Manager" },
+  { id: "energy_booster", label: "The Energy Booster" },
+  { id: "eyes_back_of_head", label: "The Eyes in the Back of the Head" },
+  { id: "corridor_surveillance", label: "The Corridor Surveillance Award" },
+  { id: "multitasking_marvel", label: "The Multitasking Marvel Award" },
+  { id: "most_approachable", label: "The Most Approachable Award" },
+  { id: "colgate_smile", label: "The Colgate Smile Award" },
 ];
 
 const PORT = process.env.PORT || 3000;
 // =======================================================
 
 const DATA_FILE = path.join(__dirname, "votes.json");
+
+const crypto = require("crypto");
 
 function loadData() {
   if (fs.existsSync(DATA_FILE)) {
@@ -36,7 +46,7 @@ function loadData() {
       console.error("votes.json is corrupted, starting fresh:", e.message);
     }
   }
-  return { voted: {}, votes: [] }; // votes: [{voter, category, teacher}]
+  return { voted: {}, votes: [] }; // voted: {sid: true}, votes: [{sid, category, teacher}]
 }
 
 let data = loadData();
@@ -45,16 +55,34 @@ function saveData() {
   fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
 }
 
-function normalize(name) {
-  return name.trim().toLowerCase();
+// One vote per device: identified by a random id stored in a cookie, not
+// by name, since students voting aren't in any name list we control.
+// Caveat, stated plainly: this is per-browser, not per-physical-device.
+// A student using a different browser or incognito on the same phone can
+// vote again. Good enough for a school poll's honor-system baseline, not
+// airtight against a determined repeat-voter.
+function getSessionId(req, res) {
+  const cookies = parseCookies(req.headers.cookie || "");
+  if (cookies.sid) return cookies.sid;
+  const sid = crypto.randomUUID();
+  res.setHeader("Set-Cookie", `sid=${sid}; Path=/; Max-Age=31536000; SameSite=Lax`);
+  return sid;
+}
+
+function parseCookies(header) {
+  const out = {};
+  header.split(";").forEach((part) => {
+    const idx = part.indexOf("=");
+    if (idx === -1) return;
+    out[part.slice(0, idx).trim()] = decodeURIComponent(part.slice(idx + 1).trim());
+  });
+  return out;
 }
 
 function computeResults() {
-  // raw counts per category, excluding self-votes (shouldn't exist, but defense in depth)
   const counts = {};
   CATEGORIES.forEach((c) => (counts[c.id] = {}));
   data.votes.forEach((v) => {
-    if (normalize(v.voter) === normalize(v.teacher)) return;
     counts[v.category][v.teacher] = (counts[v.category][v.teacher] || 0) + 1;
   });
 
@@ -119,11 +147,6 @@ function votePageHTML() {
 <div class="eyebrow">Teacher's Day</div>
 <h1>Staff Recognition Poll</h1>
 
-<div class="card" id="nameCard">
-  <p style="color:var(--muted); margin-top:0;">Search and select your name. You won't see your own name as an option below.</p>
-  <div id="voterPicker"></div>
-</div>
-
 <div class="card" id="voteCard" style="display:none;">
   <div id="voteForm"></div>
   <button class="primary" id="submitBtn" disabled>Submit ballot</button>
@@ -131,15 +154,29 @@ function votePageHTML() {
 </div>
 
 <div class="card" id="doneCard" style="display:none;">
-  <h2>Ballot submitted</h2>
-  <p style="color:var(--muted);">Thanks. Your votes are recorded.</p>
+  <h2 id="doneHeading">Ballot submitted</h2>
+  <p style="color:var(--muted);" id="doneText">Thanks. Your votes are recorded.</p>
 </div>
 
 <script>
 const ALL_TEACHERS = ${JSON.stringify(TEACHERS)};
 const CATEGORIES = ${JSON.stringify(CATEGORIES)};
-let voterName = null;
 const picks = {};
+
+// One vote per device, tracked by a cookie the server sets automatically.
+// This is checked on every page load, so refreshing does not reset it.
+(async function init() {
+  const res = await fetch('/api/status');
+  const status = await res.json();
+  if (status.alreadyVoted) {
+    document.getElementById('doneHeading').textContent = 'Already voted';
+    document.getElementById('doneText').textContent = 'This device has already submitted a ballot. One vote per device.';
+    document.getElementById('doneCard').style.display = 'block';
+    return;
+  }
+  document.getElementById('voteCard').style.display = 'block';
+  buildCategoryPickers();
+})();
 
 // Reusable type-to-search picker. Replaces a native <select>, since a
 // scrolling dropdown of 116+ names is unusable on a phone.
@@ -147,11 +184,12 @@ function createPicker(container, { placeholder, excludeNames, onSelect }) {
   container.innerHTML =
     '<input class="picker-input" type="text" placeholder="' + placeholder + '" autocomplete="off">' +
     '<div class="picker-results"></div>';
-  const input = container.querySelector('.picker-input');
-  const results = container.querySelector('.picker-results');
 
   function render(query) {
-    const q = query.trim().toLowerCase();
+    const input = container.querySelector('.picker-input');
+    const results = container.querySelector('.picker-results');
+    if (!input || !results) return; // this slot now shows a selected chip, nothing to render
+    const q = (query !== undefined ? query : input.value).trim().toLowerCase();
     const excluded = new Set((excludeNames() || []).map(n => n.toLowerCase().trim()));
     const matches = ALL_TEACHERS.filter(t =>
       !excluded.has(t.toLowerCase().trim()) && (q === '' || t.toLowerCase().includes(q))
@@ -165,47 +203,32 @@ function createPicker(container, { placeholder, excludeNames, onSelect }) {
     ).join('');
   }
 
-  input.addEventListener('focus', () => render(input.value));
-  input.addEventListener('input', () => render(input.value));
-  results.addEventListener('click', (e) => {
+  const input = container.querySelector('.picker-input');
+  input.addEventListener('focus', () => render());
+  input.addEventListener('input', () => render());
+  container.addEventListener('click', (e) => {
     const btn = e.target.closest('.picker-result');
     if (!btn) return;
+    // Defense in depth: re-check against current exclusions even if this
+    // button came from a list that was rendered before another category
+    // took this name. A stale click gets ignored and the list refreshed,
+    // instead of letting the same teacher through twice.
+    const excluded = new Set((excludeNames() || []).map(n => n.toLowerCase().trim()));
+    if (excluded.has(btn.dataset.name.toLowerCase().trim())) {
+      render();
+      return;
+    }
     onSelect(btn.dataset.name);
   });
   render('');
+
+  return render; // exposed so other pickers can be told to refresh
 }
 
 function selectedChip(container, name, onChange) {
   container.innerHTML =
     '<div class="chip"><span>' + name + '</span><button type="button">Change</button></div>';
   container.querySelector('.chip button').addEventListener('click', onChange);
-}
-
-// --- voter picker ---
-const voterPickerEl = document.getElementById('voterPicker');
-setupVoterPicker();
-
-function setupVoterPicker() {
-  createPicker(voterPickerEl, {
-    placeholder: 'Search your name…',
-    excludeNames: () => [],
-    onSelect: onVoterChosen
-  });
-}
-
-async function onVoterChosen(name) {
-  const res = await fetch('/api/status?voter=' + encodeURIComponent(name));
-  const status = await res.json();
-  if (status.alreadyVoted) {
-    document.getElementById('nameCard').style.display = 'none';
-    document.getElementById('doneCard').style.display = 'block';
-    document.getElementById('doneCard').querySelector('p').textContent = name + ' has already voted.';
-    return;
-  }
-  voterName = name;
-  selectedChip(voterPickerEl, name, () => { voterName = null; setupVoterPicker(); document.getElementById('voteCard').style.display = 'none'; document.getElementById('submitBtn').disabled = true; });
-  document.getElementById('voteCard').style.display = 'block';
-  buildCategoryPickers();
 }
 
 function buildCategoryPickers() {
@@ -216,24 +239,30 @@ function buildCategoryPickers() {
   CATEGORIES.forEach(c => setupCategoryPicker(c.id));
 }
 
+const categoryRefreshers = {};
+
+function refreshAllCategoryPickers() {
+  Object.values(categoryRefreshers).forEach(fn => fn && fn());
+}
+
 function setupCategoryPicker(catId) {
   const el = document.getElementById('picker-' + catId);
-  createPicker(el, {
+  const refresh = createPicker(el, {
     placeholder: 'Search a teacher…',
-    excludeNames: () => [
-      voterName,
-      ...Object.entries(picks).filter(([k, v]) => k !== catId && v).map(([, v]) => v)
-    ],
+    excludeNames: () => Object.entries(picks).filter(([k, v]) => k !== catId && v).map(([, v]) => v),
     onSelect: (name) => {
       picks[catId] = name;
       selectedChip(el, name, () => {
         delete picks[catId];
         checkReady();
         setupCategoryPicker(catId);
+        refreshAllCategoryPickers();
       });
       checkReady();
+      refreshAllCategoryPickers();
     }
   });
+  categoryRefreshers[catId] = refresh;
 }
 
 function checkReady() {
@@ -246,11 +275,13 @@ document.getElementById('submitBtn').addEventListener('click', async () => {
   document.getElementById('submitBtn').disabled = true;
   const res = await fetch('/api/vote', {
     method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ voter: voterName, picks })
+    body: JSON.stringify({ picks })
   });
   const out = await res.json();
   if (out.ok) {
     document.getElementById('voteCard').style.display = 'none';
+    document.getElementById('doneHeading').textContent = 'Ballot submitted';
+    document.getElementById('doneText').textContent = 'Thanks. Your votes are recorded.';
     document.getElementById('doneCard').style.display = 'block';
   } else {
     msg.className = 'msg'; msg.textContent = out.error || 'Submission failed.';
@@ -294,7 +325,11 @@ async function refresh() {
       const cls = i === 0 ? 'gold' : i === 1 ? 'silver' : 'bronze';
       const pct = Math.round((t.count / max) * 100);
       return '<div class="row"><div class="name">' + t.name + '</div><div class="bar-bg"><div class="bar ' + cls + '" style="width:' + pct + '%"></div></div><div class="count">' + t.count + '</div></div>';
-    }).join('') || '<p style="color:#8B9188;">No votes yet.</p>';
+    }).join('') || (
+      cat.allCounts.length > 0
+        ? '<p style="color:#8B9188;">Votes came in, but everyone voted for was already recognized in an earlier category.</p>'
+        : '<p style="color:#8B9188;">No votes yet.</p>'
+    );
     return '<div class="cat"><h2>' + cat.label + '</h2>' + rows + '</div>';
   }).join('');
 }
@@ -306,6 +341,7 @@ setInterval(refresh, 4000);
 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, "http://localhost");
+  const sid = getSessionId(req, res); // ensures every response carries a device cookie
 
   if (req.method === "GET" && url.pathname === "/") {
     return send(res, 200, "text/html", votePageHTML());
@@ -316,8 +352,7 @@ const server = http.createServer((req, res) => {
   }
 
   if (req.method === "GET" && url.pathname === "/api/status") {
-    const voter = url.searchParams.get("voter") || "";
-    return sendJSON(res, 200, { alreadyVoted: !!data.voted[normalize(voter)] });
+    return sendJSON(res, 200, { alreadyVoted: !!data.voted[sid] });
   }
 
   if (req.method === "GET" && url.pathname === "/api/results") {
@@ -329,12 +364,9 @@ const server = http.createServer((req, res) => {
     req.on("data", (chunk) => (body += chunk));
     req.on("end", () => {
       try {
-        const { voter, picks } = JSON.parse(body);
-        if (!voter || !TEACHERS.includes(voter)) {
-          return sendJSON(res, 400, { ok: false, error: "Invalid voter." });
-        }
-        if (data.voted[normalize(voter)]) {
-          return sendJSON(res, 400, { ok: false, error: "You've already voted." });
+        const { picks } = JSON.parse(body);
+        if (data.voted[sid]) {
+          return sendJSON(res, 400, { ok: false, error: "This device has already voted." });
         }
         const seen = new Set();
         for (const c of CATEGORIES) {
@@ -342,18 +374,15 @@ const server = http.createServer((req, res) => {
           if (!teacher || !TEACHERS.includes(teacher)) {
             return sendJSON(res, 400, { ok: false, error: "Missing pick for " + c.label + "." });
           }
-          if (normalize(teacher) === normalize(voter)) {
-            return sendJSON(res, 400, { ok: false, error: "You can't vote for yourself." });
-          }
-          if (seen.has(normalize(teacher))) {
+          if (seen.has(teacher.toLowerCase().trim())) {
             return sendJSON(res, 400, { ok: false, error: "You picked " + teacher + " in more than one category. Choose a different teacher for each." });
           }
-          seen.add(normalize(teacher));
+          seen.add(teacher.toLowerCase().trim());
         }
         CATEGORIES.forEach((c) => {
-          data.votes.push({ voter, category: c.id, teacher: picks[c.id] });
+          data.votes.push({ sid, category: c.id, teacher: picks[c.id] });
         });
-        data.voted[normalize(voter)] = true;
+        data.voted[sid] = true;
         saveData();
         return sendJSON(res, 200, { ok: true });
       } catch (e) {
