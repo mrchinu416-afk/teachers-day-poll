@@ -210,6 +210,12 @@ function votePageHTML() {
   <button class="primary" id="startBtn">Start Voting</button>
 </div>
 
+<div class="card" id="categoriesCard" style="display:none;">
+  <div class="cat-title">Today's 13 Award Categories</div>
+  <ol class="instructions" id="categoriesList"></ol>
+  <button class="primary" id="continueBtn">Let's Vote</button>
+</div>
+
 <div class="card" id="stepCard" style="display:none;"></div>
 
 <div class="card" id="doneCard" style="display:none;">
@@ -248,6 +254,14 @@ let step = 0; // 0..CATEGORIES.length-1 are category pages, CATEGORIES.length is
 
 document.getElementById('startBtn').addEventListener('click', () => {
   document.getElementById('welcomeCard').style.display = 'none';
+  document.getElementById('categoriesList').innerHTML = CATEGORIES.map((c, i) =>
+    '<li><span class="num">' + (i + 1) + '</span><span>' + c.label + '</span></li>'
+  ).join('');
+  document.getElementById('categoriesCard').style.display = 'block';
+});
+
+document.getElementById('continueBtn').addEventListener('click', () => {
+  document.getElementById('categoriesCard').style.display = 'none';
   document.getElementById('stepCard').style.display = 'block';
   renderStep(0);
 });
